@@ -1,0 +1,19 @@
+<Project>
+  <Import Project="version.props" />
+  <PropertyGroup>
+    <Product Condition=" '$(Product)' == '' ">Episerver CMS</Product>
+    <Description Condition=" '$(Description)' == '' ">Episerver Web Content Management System</Description>
+    <Company>Episerver AB</Company>
+    <Authors>Episerver AB</Authors>
+    <Copyright>© 2003-2023 by Episerver AB. All rights reserved</Copyright>
+    <PackageProjectUrl>http://www.episerver.com/web-content-management/</PackageProjectUrl>
+    <PackageLicenseUrl>http://www.episerver.com/eula/</PackageLicenseUrl>
+    <PackageIconUrl>http://www.episerver.com/Framework/Styles/Images/Products/Integration.png</PackageIconUrl>
+    <PackageTags>EPiServer Azure</PackageTags>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);1591</NoWarn>
+  </PropertyGroup>
+</Project>

@@ -1,0 +1,35 @@
+<?xml version="1.0"?>
+<package >
+  <metadata>
+    <id>EPiServer.Amazon</id>
+    <version>$version$</version>
+    <title>EPiServer Amazon</title>
+    <authors>Episerver AB</authors>
+    <owners>Episerver</owners>
+    <icon>icon.png</icon>
+    <projectUrl>http://www.episerver.com/web-content-management/</projectUrl>
+    <requireLicenseAcceptance>true</requireLicenseAcceptance>
+    <license type="file">license.txt</license>
+    <description>Framework Providers to run Episerver products with Amazon Web Services.</description>
+    <copyright>Copyright EPiServer AB 2023</copyright>
+    <tags>Amazon</tags>
+    <repository type="git" url="https://github.com/episerver/content-amazon.git"></repository>
+    <dependencies>
+      <group targetFramework="net6.0">
+        <dependency id="AWSSDK.S3" version="[$blobVersion$,$blobNextMajorVersion$)" />
+        <dependency id="AWSSDK.SimpleNotificationService" version="[$notificationVersion$,$notificationNextMajorVersion$)" />
+        <dependency id="AWSSDK.SQS" version="[$sqsVersion$,$sqsNextMajorVersion$)" />
+        <dependency id="EPiServer.Framework" version="[$frameworkVersion$, $frameworkNextMajorVersion$)" />
+        <dependency id="Microsoft.Extensions.DependencyInjection.Abstractions" version="$diVersion$" />
+        <dependency id="Microsoft.Extensions.Logging.Abstractions" version="$logVersion$" />
+        <dependency id="Microsoft.Extensions.Options" version="$optionsVersion$" />
+      </group>
+    </dependencies>
+  </metadata>
+  <files>
+    <file src="build\icon.png" target="" />
+    <file src="src\EPiServer.Amazon\license.txt" target="" />
+    <file src="src\EPiServer.Amazon\bin\$Configuration$\net6.0\EPiServer.Amazon.dll" target="lib\net6.0\EPiServer.Amazon.dll" />
+    <file src="src\EPiServer.Amazon\bin\$Configuration$\net6.0\EPiServer.Amazon.pdb" target="lib\net6.0\EPiServer.Amazon.pdb" />
+  </files>
+</package>
