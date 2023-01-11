@@ -1,3 +1,3 @@
 # EPiServer.Amazon
 
-TODO
+To install add to startup `services.AddAmazonEventProvider();` and `services.AddAmazonBlobProvider();`
