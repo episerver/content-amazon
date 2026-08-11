@@ -58,8 +58,10 @@ namespace EPiServer.Amazon.Events
             var subject = Setup(new List<string>() { "myownQueue", "otherQueue" });
 
             var sentTime = CreateEpochTimeStamp(DateTime.UtcNow);
-            var m = new Message() { };
-            m.Attributes.Add("SentTimestamp", sentTime);
+            var m = new Message
+            {
+                Attributes = new Dictionary<string, string> { { "SentTimestamp", sentTime } }
+            };
             _queueService.Setup(s => s.ReceiveMessageAsync(It.Is<ReceiveMessageRequest>(r => r.QueueUrl == "otherQueue"), It.IsAny<CancellationToken>())).ReturnsAsync(new ReceiveMessageResponse() { Messages = new List<Message>() { m} });
             
             var res = subject.Cleanup();
@@ -73,8 +75,10 @@ namespace EPiServer.Amazon.Events
             var subject =  Setup(new List<string>() { "myownQueue", "otherQueue" });
 
             var sentTime = CreateEpochTimeStamp(DateTime.UtcNow.AddHours(-2));
-            var m = new Message() { };
-            m.Attributes.Add("SentTimestamp", sentTime);
+            var m = new Message
+            {
+                Attributes = new Dictionary<string, string> { { "SentTimestamp", sentTime } }
+            };
             _queueService.Setup(s => s.ReceiveMessageAsync(It.Is<ReceiveMessageRequest>(r => r.QueueUrl == "otherQueue"), It.IsAny<CancellationToken>())).ReturnsAsync(new ReceiveMessageResponse() { Messages = new List<Message>() { m } });
 
             var res = subject.Cleanup();
@@ -99,8 +103,10 @@ namespace EPiServer.Amazon.Events
 
                 _notificationClient.Setup(n => n.UnsubscribeAsync(subscriptionArn, It.IsAny<CancellationToken>())).ReturnsAsync(new UnsubscribeResponse());
                 
-                var getQueryReq = new GetQueueAttributesResponse();
-                getQueryReq.Attributes.Add("QueueArn", q);
+                var getQueryReq = new GetQueueAttributesResponse
+                {
+                    Attributes = new Dictionary<string, string> { { "QueueArn", q } }
+                };
                 _queueService.Setup(s => s.GetQueueAttributesAsync(It.Is<GetQueueAttributesRequest>(r => r.QueueUrl == q), It.IsAny<CancellationToken>())).ReturnsAsync(getQueryReq);
             }
             _notificationClient.Setup(n => n.ListSubscriptionsAsync(It.IsAny<ListSubscriptionsRequest>(), It.IsAny<CancellationToken>())).ReturnsAsync(new ListSubscriptionsResponse() { Subscriptions = subscriptions });

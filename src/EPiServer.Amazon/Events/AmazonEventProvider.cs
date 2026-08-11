@@ -8,6 +8,7 @@ using Amazon;
 using EPiServer.Events;
 using EPiServer.Events.Providers;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace EPiServer.Amazon.Events
 {
@@ -20,11 +21,13 @@ namespace EPiServer.Amazon.Events
     /// <code>
     /// {
     ///   "EPiServer" : {
-    ///     "AmazonEvent" : {
-    ///       "topic" : "EPiServer-Events",
-    ///       "accessKey" : "[Your AWS Access Key]",
-    ///       "secretKey" : "[Your AWS Secret Access Key]",
-    ///       "region" : "ap-southeast-2"
+    ///     "AmazonEvents" : {
+    ///       "AmazonEventClient" : {
+    ///         "TopicName" : "EPiServer-Events",
+    ///         "AccessKey" : "[Your AWS Access Key]",
+    ///         "SecretKey" : "[Your AWS Secret Access Key]",
+    ///         "Region" : "ap-southeast-2"
+    ///       }
     ///     }
     ///   }
     /// }
@@ -44,12 +47,15 @@ namespace EPiServer.Amazon.Events
         private ActionBlock<EventMessage> _eventProcessor;
         private CancellationTokenSource _cts;
         private readonly AmazonEventClientOptions _amazonEventClientOptions;
+        private readonly MessageSerializer _serializer;
 
         public AmazonEventProvider(ILogger<AmazonEventProvider> logger,
-            AmazonEventClientOptions amazonEventClientOptions)
+            AmazonEventClientOptions amazonEventClientOptions,
+            IOptions<EventsOptions> eventsOptions)
         {
             _logger = logger;
             _amazonEventClientOptions = amazonEventClientOptions;
+            _serializer = new MessageSerializer(eventsOptions);
         }
 
         /// <summary>
@@ -57,6 +63,7 @@ namespace EPiServer.Amazon.Events
         /// as this is done by the AWSSDK.
         /// </summary>
         /// <value>The property will always return <c>false</c>.</value>
+        [Obsolete("Message integrity validation is obsolete in EventProvider and is not used by this provider.")]
         public override bool ValidateMessageIntegrity
         {
             get { return false; }
@@ -166,7 +173,7 @@ namespace EPiServer.Amazon.Events
                     {
                         if (!(ex is TaskCanceledException))
                         {
-                            _logger.LogError("Send process threw an exception while waiting to complete.", ex);
+                            _logger.LogError(ex, "Send process threw an exception while waiting to complete.");
                         }
                         return true;
                     });
@@ -186,7 +193,7 @@ namespace EPiServer.Amazon.Events
                     {
                         if (!(ex is TaskCanceledException))
                         {
-                            _logger.LogError("Event process threw an exception while waiting to complete.", ex);
+                            _logger.LogError(ex, "Event process threw an exception while waiting to complete.");
                         }
                         return true;
                     });
@@ -216,6 +223,18 @@ namespace EPiServer.Amazon.Events
             }
         }
 
+        /// <inheritdoc />
+        public override async Task SendMessageAsync(EventMessage message, CancellationToken cancellationToken = default)
+        {
+            if (_sendProcessor == null)
+                throw new InvalidOperationException("The provider is either not initialized yet or has been disposed.");
+
+            if (!await _sendProcessor.SendAsync(message, cancellationToken).ConfigureAwait(false))
+            {
+                _logger.LogWarning("Unable to post message to send queue. Queue is likely full");
+            }
+        }
+
         /// <summary>
         /// Creates and initializes the <see cref="AmazonEventClient"/> client.
         /// </summary>
@@ -224,7 +243,7 @@ namespace EPiServer.Amazon.Events
         protected virtual AmazonEventClient CreateAndInitializeClient(AmazonEventClientOptions amazonEventClientOptions)
         {
             var client = new AmazonEventClient();
-            client.Initialize(amazonEventClientOptions);
+            client.Initialize(amazonEventClientOptions, _serializer);
             return client;
         }
 
@@ -240,7 +259,7 @@ namespace EPiServer.Amazon.Events
             _client = CreateAndInitializeClient(_amazonEventClientOptions);
 
             _sendProcessor = new ActionBlock<EventMessage>(
-                m => _client.Publish(m),
+                m => _client.PublishAsync(m, _cts.Token),
                 new ExecutionDataflowBlockOptions
                 {
                     MaxDegreeOfParallelism = _amazonEventClientOptions != null ? _amazonEventClientOptions.MaxSendThreads : 1,

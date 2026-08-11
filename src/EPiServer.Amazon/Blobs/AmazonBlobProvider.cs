@@ -22,17 +22,18 @@ namespace EPiServer.Amazon.Blobs
     /// {
     ///   "EPiServer" : {
     ///     "AmazonBlob" : {
-    ///       "bucket" : "root-bucket-name",
-    ///       "downloadChunkSize" : "2097152",
-    ///       "accessKey" : "[Your AWS Access Key]",
-    ///       "secretKey" : "[Your AWS Secret Access Key]",
-    ///       "region" : "ap-southeast-2"
+    ///       "AmazonBlobClient" : {
+    ///         "BucketName" : "root-bucket-name",
+    ///         "DownloadChunkSize" : 2097152,
+    ///         "AccessKey" : "[Your AWS Access Key]",
+    ///         "SecretKey" : "[Your AWS Secret Access Key]",
+    ///         "Region" : "ap-southeast-2"
+    ///       }
     ///     }
     ///   }
     /// }
     /// </code>
-    /// Note that all settings must be the same on all sites that should be communicating using remote events and that the
-    /// Topic should be unique between different environments.
+    /// Note that all sites in an environment must be configured to use the same bucket.
     /// </example>
 
     public class AmazonBlobProvider : BlobProvider, IDisposable

@@ -121,7 +121,7 @@ namespace EPiServer.Amazon.Events
             ExecuteQueueQuery(() =>
             {
                 var queues = _queueService.ListQueuesAsync(new ListQueuesRequest(_queueNamePrefix), new CancellationToken()).GetAwaiter().GetResult();
-                queueUrls = queues.QueueUrls.Where(q => !q.Equals(_ownQueueUrl, StringComparison.OrdinalIgnoreCase));
+                queueUrls = (queues.QueueUrls ?? Enumerable.Empty<string>()).Where(q => !q.Equals(_ownQueueUrl, StringComparison.OrdinalIgnoreCase));
             });
 
             return GetQueuesInfo(queueUrls);
@@ -170,8 +170,11 @@ namespace EPiServer.Amazon.Events
             ReceiveMessageResponse receiveMessageResponse = null;
             var res = ExecuteQueueQuery(() =>
             {
-                var receiveMessageRequest = new ReceiveMessageRequest(queueInfo.QueueUrl) { VisibilityTimeout = 0 };
-                receiveMessageRequest.AttributeNames.Add(SentTimestamp);
+                var receiveMessageRequest = new ReceiveMessageRequest(queueInfo.QueueUrl)
+                {
+                    VisibilityTimeout = 0,
+                    MessageSystemAttributeNames = new List<string> { SentTimestamp }
+                };
                 receiveMessageResponse = _queueService.ReceiveMessageAsync(receiveMessageRequest, new CancellationToken()).GetAwaiter().GetResult();
             }, queueInfo.QueueUrl, "Peek Message", true);
 
@@ -206,9 +209,10 @@ namespace EPiServer.Amazon.Events
                 while (localSubscription == null)
                 {
                     var subs = _notificationClient.ListSubscriptionsAsync(new ListSubscriptionsRequest(nextToken)).GetAwaiter().GetResult();
-                    localSubscription = subs.Subscriptions.Where(s => s.Endpoint == queueArn).FirstOrDefault();
+                    var subscriptions = subs.Subscriptions ?? new List<Subscription>();
+                    localSubscription = subscriptions.Where(s => s.Endpoint == queueArn).FirstOrDefault();
                     nextToken = subs.NextToken;
-                    if (subs.Subscriptions.Count() == 0 || string.IsNullOrEmpty(nextToken)) break;
+                    if (subscriptions.Count == 0 || string.IsNullOrEmpty(nextToken)) break;
                 }
             }, queueArn, "GetSubscription", true);
 
@@ -247,8 +251,11 @@ namespace EPiServer.Amazon.Events
             string localQueueArn = queueArn = null;
             var res = ExecuteQueueQuery(() =>
                 {
-                    var getAttributesRequest = new GetQueueAttributesRequest { QueueUrl = queueUrl };
-                    getAttributesRequest.AttributeNames.Add("QueueArn");
+                    var getAttributesRequest = new GetQueueAttributesRequest
+                    {
+                        QueueUrl = queueUrl,
+                        AttributeNames = new List<string> { "QueueArn" }
+                    };
                     localQueueArn = _queueService.GetQueueAttributesAsync(getAttributesRequest, new CancellationToken()).GetAwaiter().GetResult().QueueARN;
                 }, queueUrl, "Get QueueArn", true);
 
