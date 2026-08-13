@@ -40,7 +40,7 @@ namespace EPiServer.Amazon.Events
         public int QueueBatchSize { get; set; } = DefaultQueueBatchSize;
 
         /// <summary>
-        /// Gets or sets the maximum number of threads that should be used to send messages.
+        /// Gets or sets the maximum number of messages that may be sent concurrently.
         /// </summary>
         public int MaxSendThreads { get; set; } = 1;
 

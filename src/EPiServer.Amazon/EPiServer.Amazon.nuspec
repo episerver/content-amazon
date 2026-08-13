@@ -11,11 +11,11 @@
     <requireLicenseAcceptance>true</requireLicenseAcceptance>
     <license type="file">license.txt</license>
     <description>Framework Providers to run Episerver products with Amazon Web Services.</description>
-    <copyright>Copyright EPiServer AB 2023</copyright>
+    <copyright>Copyright EPiServer AB 2026</copyright>
     <tags>Amazon</tags>
     <repository type="git" url="https://github.com/episerver/content-amazon.git"></repository>
     <dependencies>
-      <group targetFramework="net6.0">
+      <group targetFramework="net10.0">
         <dependency id="AWSSDK.S3" version="[$blobVersion$,$blobNextMajorVersion$)" />
         <dependency id="AWSSDK.SimpleNotificationService" version="[$notificationVersion$,$notificationNextMajorVersion$)" />
         <dependency id="AWSSDK.SQS" version="[$sqsVersion$,$sqsNextMajorVersion$)" />
@@ -29,7 +29,8 @@
   <files>
     <file src="build\icon.png" target="" />
     <file src="src\EPiServer.Amazon\license.txt" target="" />
-    <file src="src\EPiServer.Amazon\bin\$Configuration$\net6.0\EPiServer.Amazon.dll" target="lib\net6.0\EPiServer.Amazon.dll" />
-    <file src="src\EPiServer.Amazon\bin\$Configuration$\net6.0\EPiServer.Amazon.pdb" target="lib\net6.0\EPiServer.Amazon.pdb" />
+    <file src="src\EPiServer.Amazon\bin\$Configuration$\net10.0\EPiServer.Amazon.dll" target="lib\net10.0\EPiServer.Amazon.dll" />
+    <file src="src\EPiServer.Amazon\bin\$Configuration$\net10.0\EPiServer.Amazon.pdb" target="lib\net10.0\EPiServer.Amazon.pdb" />
+    <file src="src\EPiServer.Amazon\bin\$Configuration$\net10.0\EPiServer.Amazon.xml" target="lib\net10.0\EPiServer.Amazon.xml" />
   </files>
 </package>

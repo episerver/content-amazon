@@ -3,9 +3,10 @@ using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Text.RegularExpressions;
+using System.Threading;
+using System.Threading.Tasks;
 using Amazon;
 using Amazon.Auth.AccessControlPolicy;
-using Amazon.Auth.AccessControlPolicy.ActionIdentifiers;
 using Amazon.Runtime;
 using Amazon.Runtime.CredentialManagement;
 using Amazon.SimpleNotificationService;
@@ -43,12 +44,15 @@ namespace EPiServer.Amazon.Events
         /// Initializes the client using the specified client configuration.
         /// </summary>
         /// <param name="clientConfiguration">The client configuration.</param>
+        /// <param name="serializer">The serializer used to read and write the messages passed by this instance.</param>
         /// <exception cref="System.ArgumentNullException" />
         /// <exception cref="System.InvalidOperationException">An instance can only be initialized once.</exception>
-        public virtual void Initialize(AmazonEventClientOptions clientConfiguration)
+        public virtual void Initialize(AmazonEventClientOptions clientConfiguration, MessageSerializer serializer)
         {
             if (clientConfiguration == null)
                 throw new ArgumentNullException("clientConfiguration");
+            if (serializer == null)
+                throw new ArgumentNullException("serializer");
 
             if (ClientConfiguration != null)
                 throw new InvalidOperationException("This instance has already been initialized before.");
@@ -62,12 +66,12 @@ namespace EPiServer.Amazon.Events
 
             // Topic
             var topicArn = CreateTopic(_notificationService, clientConfiguration.TopicName);
-            _topicClient = new TopicClient(_notificationService, topicArn);
+            _topicClient = new TopicClient(_notificationService, topicArn, serializer);
 
             // Subscription Queue
             string queueArn = CreateAndConfigureQueue(_queueService, topicArn, out _queueUrl);
             _subscriptionArn = SubscribeQueueToTopic(_notificationService, topicArn, queueArn);
-            _subscriptionClient = new SubscriptionClient(_queueService, _queueUrl);
+            _subscriptionClient = new SubscriptionClient(_queueService, _queueUrl, serializer);
 
             if (!clientConfiguration.DisableAutoCleanupQueue)
             {
@@ -81,15 +85,32 @@ namespace EPiServer.Amazon.Events
         /// </summary>
         /// <param name="message">The message to publish.</param>
         /// <exception cref="System.ArgumentNullException"/>
-        /// <exception cref="System.InvalidOperationException">The Receive method cannot be called before the instance has been initialized.</exception>
+        /// <exception cref="System.InvalidOperationException">The Publish method cannot be called before the instance has been initialized.</exception>
         public virtual void Publish(EventMessage message)
         {
             if (message == null)
                 throw new ArgumentNullException("message");
             if (_topicClient == null)
-                throw new InvalidOperationException("The Receive method cannot be called before the instance has been initialized.");
+                throw new InvalidOperationException("The Publish method cannot be called before the instance has been initialized.");
 
             _topicClient.Publish(message);
+        }
+
+        /// <summary>
+        /// Publishes the specified message to the Amazon SNS topic.
+        /// </summary>
+        /// <param name="message">The message to publish.</param>
+        /// <param name="cancellationToken">A token used to cancel the request.</param>
+        /// <exception cref="System.ArgumentNullException"/>
+        /// <exception cref="System.InvalidOperationException">The Publish method cannot be called before the instance has been initialized.</exception>
+        public virtual Task PublishAsync(EventMessage message, CancellationToken cancellationToken = default)
+        {
+            if (message == null)
+                throw new ArgumentNullException("message");
+            if (_topicClient == null)
+                throw new InvalidOperationException("The Publish method cannot be called before the instance has been initialized.");
+
+            return _topicClient.PublishAsync(message, cancellationToken);
         }
 
         /// <summary>
@@ -291,10 +312,16 @@ namespace EPiServer.Amazon.Events
         {
             var expirationInSec = ClientConfiguration.QueueExpiration.TotalSeconds.ToString(CultureInfo.InvariantCulture);
             var accessPolicy = CreateAccessControlPolicy(topicArn, queueArn);
-            var setAttributesRequest = new SetQueueAttributesRequest { QueueUrl = queueUrl };
-            setAttributesRequest.Attributes.Add("MessageRetentionPeriod", expirationInSec);
-            setAttributesRequest.Attributes.Add("VisibilityTimeout", expirationInSec);
-            setAttributesRequest.Attributes.Add("Policy", accessPolicy.ToJson());
+            var setAttributesRequest = new SetQueueAttributesRequest
+            {
+                QueueUrl = queueUrl,
+                Attributes = new Dictionary<string, string>
+                {
+                    { "MessageRetentionPeriod", expirationInSec },
+                    { "VisibilityTimeout", expirationInSec },
+                    { "Policy", accessPolicy.ToJson() }
+                }
+            };
 
             queueService.SetQueueAttributesAsync(setAttributesRequest).GetAwaiter().GetResult();
 
@@ -302,8 +329,11 @@ namespace EPiServer.Amazon.Events
 
         private string RequestQueueArn(IAmazonSQS queueService, string queueUrl)
         {
-            var getAttributesRequest = new GetQueueAttributesRequest { QueueUrl = queueUrl };
-            getAttributesRequest.AttributeNames.Add("QueueArn");
+            var getAttributesRequest = new GetQueueAttributesRequest
+            {
+                QueueUrl = queueUrl,
+                AttributeNames = new List<string> { "QueueArn" }
+            };
             return queueService.GetQueueAttributesAsync(getAttributesRequest).GetAwaiter().GetResult().QueueARN;
         }
 

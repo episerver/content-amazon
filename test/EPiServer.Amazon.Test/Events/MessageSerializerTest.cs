@@ -1,13 +1,16 @@
-﻿using System;
+using System;
 using System.Text.RegularExpressions;
 using EPiServer.Events;
-using EPiServer.Events.Clients.Internal;
+using Microsoft.Extensions.Options;
 using Xunit;
 
 namespace EPiServer.Amazon.Events
 {
     public class MessageSerializerTest
     {
+        // The event id that the parameter type is registered for, and that the example notification below carries.
+        private static readonly Guid TestStateMessageEventId = new Guid("51da5053-6af8-4a10-9bd4-8417e48f38bd");
+
         private const string exampleSqsJson = "{\n  \"Type\" : \"Notification\",\n " +
             " \"MessageId\" : \"99cf755c-893a-5c0c-9ec2-3fcc1d3482ae\",\n " +
             " \"TopicArn\" : \"arn:aws:sns:ap-southeast-2:565859746803:EPiServer-Events\",\n " +
@@ -21,7 +24,6 @@ namespace EPiServer.Amazon.Events
                     "\\\"VerificationData\\\":\\\"GL18gfME9pDG/gVdurQnHUtVM8LR3lCunw4dBGnUIvM=\\\"," +
                     "\\\"EventId\\\":\\\"51da5053-6af8-4a10-9bd4-8417e48f38bd\\\"," +
                     "\\\"Parameter\\\":{" +
-                        "\\\"$type\\\":\\\"EPiServer.Events.Clients.Internal.StateMessage, EPiServer.Events\\\"," +
                         "\\\"ServerName\\\":\\\"PULVER\\\"," +
                         "\\\"ApplicationName\\\":\\\"/LM/W3SVC/4/ROOT\\\"," +
                         "\\\"Sent\\\":\\\"2013-08-22T22:25:55.6294049Z\\\"," +
@@ -34,6 +36,13 @@ namespace EPiServer.Amazon.Events
             " \"SigningCertURL\" : \"https://sns.ap-southeast-2.amazonaws.com/SimpleNotificationService-f3ecfb7224c7233fe7bb5f59f96de52f.pem\",\n " +
             " \"UnsubscribeURL\" : \"https://sns.ap-southeast-2.amazonaws.com/?Action=Unsubscribe&SubscriptionArn=arn:aws:sns:ap-southeast-2:565859746803:EPiServer-Events:a59faa8c-b985-42f1-ae57-e4ea58a75d4c\"\n}";
 
+        private static MessageSerializer CreateSerializer()
+        {
+            var eventsOptions = new EventsOptions();
+            eventsOptions.AddEventType<TestStateMessage>(TestStateMessageEventId);
+            return new MessageSerializer(Options.Create(eventsOptions));
+        }
+
         [Fact]
         public void Serialize_ShouldCreateJsonSerialization()
         {
@@ -44,7 +53,7 @@ namespace EPiServer.Amazon.Events
                 ServerName = "A"
             };
 
-            var subject = new MessageSerializer();
+            var subject = CreateSerializer();
 
             var result = subject.Serialize(message);
 
@@ -56,14 +65,14 @@ namespace EPiServer.Amazon.Events
         [Fact]
         public void Serialize_WithMessageParameter_ShouldCreateJsonSerialization()
         {
-            var param = new StateMessage("A", "X", StateMessageType.Awesome, DateTime.UtcNow);
+            var param = new TestStateMessage("A", "X", TestStateMessageType.Awesome, DateTime.UtcNow);
             var message = new EventMessage
             {
-                EventId = Guid.NewGuid(),
+                EventId = TestStateMessageEventId,
                 Parameter = param
             };
 
-            var subject = new MessageSerializer();
+            var subject = CreateSerializer();
 
             var result = subject.Serialize(message);
 
@@ -71,22 +80,37 @@ namespace EPiServer.Amazon.Events
         }
 
         [Fact]
-        public void Serialize_WithMessageParameter_ShouldIncludeTypeInformation()
+        public void Serialize_WithMessageParameter_ShouldNotIncludeTypeInformation()
         {
-            var param = new StateMessage("A", "X", StateMessageType.Awesome, DateTime.UtcNow);
             var message = new EventMessage
             {
-                EventId = Guid.NewGuid(),
-                Parameter = param
+                EventId = TestStateMessageEventId,
+                Parameter = new TestStateMessage("A", "X", TestStateMessageType.Awesome, DateTime.UtcNow)
             };
 
-            var subject = new MessageSerializer();
+            var subject = CreateSerializer();
 
             var result = subject.Serialize(message);
 
-            var qualifiedTypeStringWithoutVersion = string.Format("{0}, {1}", typeof(StateMessage).FullName, typeof(StateMessage).Assembly.GetName().Name);
+            // The parameter type is resolved from the registered event type, not from the message.
+            Assert.DoesNotContain("$type", result, StringComparison.Ordinal);
+            Assert.DoesNotContain(typeof(TestStateMessage).FullName, result, StringComparison.Ordinal);
+        }
 
-            Assert.Matches(PropertyPattern("$type", qualifiedTypeStringWithoutVersion), result);
+        [Fact]
+        public void Serialize_WithEnumInParameter_ShouldWriteItsName()
+        {
+            var message = new EventMessage
+            {
+                EventId = TestStateMessageEventId,
+                Parameter = new TestStateMessage("A", "X", TestStateMessageType.Awesome, DateTime.UtcNow)
+            };
+
+            var subject = CreateSerializer();
+
+            var result = subject.Serialize(message);
+
+            Assert.Contains("\"Type\":\"Awesome\"", result, StringComparison.Ordinal);
         }
 
         [Fact]
@@ -97,18 +121,98 @@ namespace EPiServer.Amazon.Events
                 EventId = Guid.NewGuid(),
                 Parameter = Guid.NewGuid()
             };
-            var subject = new MessageSerializer();
+            var subject = CreateSerializer();
             var result = subject.Serialize(message);
             message = subject.Deserialize(result);
 
             Assert.IsType<Guid>(message.Parameter);
         }
 
+        [Fact]
+        public void Serialize_WithoutOptionalProperties_ShouldOmitThem()
+        {
+            var subject = CreateSerializer();
+
+            var result = subject.Serialize(new EventMessage { EventId = Guid.NewGuid() });
+
+            Assert.DoesNotContain("ApplicationName", result, StringComparison.Ordinal);
+            Assert.DoesNotContain("Sent", result, StringComparison.Ordinal);
+        }
+
+        [Theory]
+        [InlineData("text")]
+        [InlineData(true)]
+        public void Deserialize_WithScalarParameter_ShouldInferItsType(object parameter)
+        {
+            var subject = CreateSerializer();
+
+            var result = subject.Deserialize(subject.Serialize(new EventMessage
+            {
+                EventId = Guid.NewGuid(),
+                Parameter = parameter
+            }));
+
+            Assert.Equal(parameter, result.Parameter);
+        }
+
+        [Fact]
+        public void Deserialize_WithIntegerParameter_ShouldInferItAsInt64()
+        {
+            var subject = CreateSerializer();
+
+            var result = subject.Deserialize(subject.Serialize(new EventMessage
+            {
+                EventId = Guid.NewGuid(),
+                Parameter = 42
+            }));
+
+            Assert.Equal(42L, result.Parameter);
+        }
+
+        [Fact]
+        public void Deserialize_WithMessageParameter_ShouldRecreateParameterAsRegisteredType()
+        {
+            var param = new TestStateMessage("A", "X", TestStateMessageType.Awesome, DateTime.UtcNow);
+            var message = new EventMessage
+            {
+                EventId = TestStateMessageEventId,
+                Parameter = param
+            };
+
+            var subject = CreateSerializer();
+
+            var serialized = subject.Serialize(message);
+            var result = subject.Deserialize(serialized);
+
+            var parameter = Assert.IsType<TestStateMessage>(result.Parameter);
+            Assert.Equal(param.ServerName, parameter.ServerName);
+            Assert.Equal(param.Type, parameter.Type);
+        }
+
+        [Fact]
+        public void Deserialize_WithUnregisteredEvent_ShouldReadTheMessageWithoutItsParameter()
+        {
+            var message = new EventMessage
+            {
+                EventId = Guid.NewGuid(),
+                SequenceNumber = 3,
+                ServerName = "A",
+                Parameter = new TestStateMessage("A", "X", TestStateMessageType.Awesome, DateTime.UtcNow)
+            };
+
+            var subject = CreateSerializer();
+
+            var result = subject.Deserialize(subject.Serialize(message));
+
+            Assert.Null(result.Parameter);
+            Assert.Equal(3, result.SequenceNumber);
+            Assert.Equal("A", result.ServerName);
+        }
 
         [Fact]
         public void DeserializeNotification_WithExampleJson_ShouldCreateEventMessage()
         {
-            var subject = new MessageSerializer();
+            var subject = CreateSerializer();
 
             var result = subject.DeserializeNotification(exampleSqsJson);
 
@@ -118,33 +222,14 @@ namespace EPiServer.Amazon.Events
         }
 
         [Fact]
-        public void DeserializeNotification_WithExampleJson_ShouldCreateStateMessageParameter()
+        public void DeserializeNotification_WithExampleJson_ShouldCreateTypedParameter()
         {
-            var subject = new MessageSerializer();
+            var subject = CreateSerializer();
 
             var result = subject.DeserializeNotification(exampleSqsJson);
 
-            Assert.IsAssignableFrom<StateMessage>(result.Parameter);
-            Assert.Equal("PULVER", ((StateMessage)result.Parameter).ServerName);
-        }
-
-        [Fact]
-        public void Deserialize_WithMessageParameter_ShouldRecreateParameterAsOriginalType()
-        {
-            var param = new StateMessage("A", "X", StateMessageType.Awesome, DateTime.UtcNow);
-            var message = new EventMessage
-            {
-                EventId = Guid.NewGuid(),
-                Parameter = param
-            };
-
-            var subject = new MessageSerializer();
-
-            var serialized = subject.Serialize(message);
-            var result = subject.Deserialize(serialized);
-
-            Assert.IsAssignableFrom<StateMessage>(result.Parameter);
-            Assert.Equal(param.ServerName, ((StateMessage)result.Parameter).ServerName);
+            Assert.IsAssignableFrom<TestStateMessage>(result.Parameter);
+            Assert.Equal("PULVER", ((TestStateMessage)result.Parameter).ServerName);
         }
 
         private static string PropertyPattern(string propertyName, object value)
