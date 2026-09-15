@@ -14,7 +14,8 @@ namespace EPiServer.Amazon.Events
         {
             TypeNameHandling = TypeNameHandling.Auto,
             NullValueHandling = NullValueHandling.Ignore,
-            ContractResolver = new MessageContractResolver()
+            ContractResolver = new MessageContractResolver(),
+            SerializationBinder = new EventMessageSerializationBinder()
         };
 
         /// <summary>
