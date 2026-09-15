@@ -76,11 +76,27 @@ namespace EPiServer.Amazon.Events
 
             var messages = response.Messages
                 .Where(m => m.Body != null)
-                .Select(m => Serializer.DeserializeNotification(m.Body)).ToArray();
+                .Select(TryDeserialize)
+                .Where(m => m != null)
+                .ToArray();
 
+            // Always delete the whole batch, so a message that cannot be deserialized is not redelivered
             DeleteRetrievedMessages(_queueUrl, response.Messages);
 
             return messages;
+        }
+
+        private EventMessage TryDeserialize(Message message)
+        {
+            try
+            {
+                return Serializer.DeserializeNotification(message.Body);
+            }
+            catch (Exception ex)
+            {
+                Logger.Error($"Unable to deserialize event message '{message.MessageId}', the message will be discarded.", ex);
+                return null;
+            }
         }
 
         private void DeleteRetrievedMessages(string queueUrl, IEnumerable<Message> messages)

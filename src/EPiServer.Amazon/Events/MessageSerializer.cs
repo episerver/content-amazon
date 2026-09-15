@@ -2,6 +2,7 @@
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using System;
+using System.Collections.Generic;
 
 namespace EPiServer.Amazon.Events
 {
@@ -10,12 +11,39 @@ namespace EPiServer.Amazon.Events
     /// </summary>
     public class MessageSerializer
     {
-        private static readonly JsonSerializerSettings DefaultSettings = new JsonSerializerSettings
+        private static readonly JsonSerializerSettings DefaultSettings = CreateSettings(null);
+
+        private readonly JsonSerializerSettings _settings;
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="MessageSerializer"/> class that only allows
+        /// the default set of parameter types to be deserialized.
+        /// </summary>
+        public MessageSerializer()
         {
-            TypeNameHandling = TypeNameHandling.Auto,
-            NullValueHandling = NullValueHandling.Ignore,
-            ContractResolver = new MessageContractResolver()
-        };
+            _settings = DefaultSettings;
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="MessageSerializer"/> class that, in addition to the
+        /// default set, allows the specified types to be deserialized as <see cref="EventMessage.Parameter"/>.
+        /// </summary>
+        /// <param name="allowedParameterTypes">Additional types that are allowed to be deserialized.</param>
+        public MessageSerializer(IEnumerable<Type> allowedParameterTypes)
+        {
+            _settings = CreateSettings(allowedParameterTypes);
+        }
+
+        private static JsonSerializerSettings CreateSettings(IEnumerable<Type> allowedParameterTypes)
+        {
+            return new JsonSerializerSettings
+            {
+                TypeNameHandling = TypeNameHandling.Auto,
+                NullValueHandling = NullValueHandling.Ignore,
+                ContractResolver = new MessageContractResolver(),
+                SerializationBinder = new EventMessageSerializationBinder(allowedParameterTypes)
+            };
+        }
 
         /// <summary>
         /// Serializes the specified <see cref="EventMessage"/> to JSON.
@@ -24,7 +52,7 @@ namespace EPiServer.Amazon.Events
         /// <returns></returns>
         public virtual string Serialize(EventMessage message)
         {
-            return JsonConvert.SerializeObject(message, DefaultSettings);
+            return JsonConvert.SerializeObject(message, _settings);
         }
 
         /// <summary>
@@ -34,7 +62,7 @@ namespace EPiServer.Amazon.Events
         /// <returns>An <see cref="EventMessage"/> instance.</returns>
         public virtual EventMessage Deserialize(string serializedMessage)
         {
-            return JsonConvert.DeserializeObject<EventMessage>(serializedMessage, DefaultSettings);
+            return JsonConvert.DeserializeObject<EventMessage>(serializedMessage, _settings);
         }
 
         /// <summary>

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using EPiServer.ServiceLocation;
 
 namespace EPiServer.Amazon.Events
@@ -48,6 +49,17 @@ namespace EPiServer.Amazon.Events
         /// Gets or sets the maximum number of threads that should be used to process received messages and raise events.
         /// </summary>
         public int MaxEventThreads { get; set; } = 1;
+
+        /// <summary>
+        /// Gets the additional types that are allowed to be deserialized as an event message parameter.
+        /// </summary>
+        /// <remarks>
+        /// Simple values such as <see cref="string"/> and <see cref="Guid"/>, types decorated with
+        /// <see cref="EPiServer.Events.EventsServiceKnownTypeAttribute"/>, and arrays, <see cref="List{T}"/> and
+        /// <see cref="Dictionary{TKey, TValue}"/> of allowed types are always allowed. Registered types are also
+        /// allowed as elements of those collections.
+        /// </remarks>
+        public ICollection<Type> AllowedParameterTypes { get; } = new List<Type>();
 
     }
 }
