@@ -49,20 +49,21 @@ namespace EPiServer.Amazon.Events
             int counter = 0;
             var tokenSource = new CancellationTokenSource();
 
-            var t = Task.Factory.StartContinuous(() => counter++, tokenSource.Token, NoRetries.Instance);
+            var t = Task.Factory.StartContinuous(() => Interlocked.Increment(ref counter), tokenSource.Token, NoRetries.Instance);
 
-            // Let it run for a bit
-            Thread.Sleep(50);
+            // Let it run, for as long as a loaded machine needs to schedule it at all.
+            Assert.True(SpinWait.SpinUntil(() => Volatile.Read(ref counter) > 0, TestTimeout), "The action was never invoked.");
             tokenSource.Cancel();
 
-            // Ensure that all tasks has finished before reading the counter
+            // The task completes once the loop has observed the cancellation, so the count is settled by then.
+            Wait(t);
+            Assert.True(t.IsCompleted, string.Format("Task did not complete after cancellation but was '{0}'.", t.Status));
+            var expected = Volatile.Read(ref counter);
+
+            // See if it continues to run
             Thread.Sleep(20);
-            var expected = counter;
 
-            // See if if contiues to run
-            Wait(t, TimeSpan.FromMilliseconds(200));
-
-            Assert.Equal(expected, counter);
+            Assert.Equal(expected, Volatile.Read(ref counter));
         }
 
         [Fact]

@@ -2,20 +2,20 @@
   <Import Project="..\..\build\common.props" />
   <Import Project="..\..\build\nuspec.props" />
   <PropertyGroup>
-    <TargetFramework>net6.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <Product>Episerver Amazon</Product>
     <Description>Framework Providers to run Episerver products in Amazon AWS</Description>
     <NuspecFile>EPiServer.Amazon.nuspec</NuspecFile>
     <EmbedUntrackedSources>true</EmbedUntrackedSources>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="AWSSDK.S3" Version="3.7.101.50" />
-    <PackageReference Include="AWSSDK.SimpleNotificationService" Version="3.7.100.51" />
-    <PackageReference Include="AWSSDK.SQS" Version="3.7.100.50" />
-    <PackageReference Include="EPiServer.Framework" Version="12.11.0" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="6.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="6.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Options" Version="6.0.0" />
-    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.1.1" PrivateAssets="All" />
+    <PackageReference Include="AWSSDK.S3" Version="4.0.102.1" />
+    <PackageReference Include="AWSSDK.SimpleNotificationService" Version="4.0.100.8" />
+    <PackageReference Include="AWSSDK.SQS" Version="4.0.100.8" />
+    <PackageReference Include="EPiServer.Framework" Version="13.1.1" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.11" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.11" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.11" />
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="10.0.400" PrivateAssets="All" />
   </ItemGroup>
 </Project>

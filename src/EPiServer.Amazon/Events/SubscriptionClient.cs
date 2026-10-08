@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.Threading.Tasks;
 using System.Linq;
 using Amazon.SQS;
@@ -22,27 +23,32 @@ namespace EPiServer.Amazon.Events
 
         private readonly IAmazonSQS _queueService;
         private readonly string _queueUrl;
-        private MessageSerializer _serializer;
+        private readonly MessageSerializer _serializer;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="SubscriptionClient" /> class.
         /// </summary>
         /// <param name="queueService">The queue service.</param>
         /// <param name="queueUrl">The URL to the SQS queue.</param>
+        /// <param name="serializer">The serializer used to read the messages received by this instance.</param>
+        /// <exception cref="System.ArgumentNullException" />
         [SuppressMessage("Microsoft.Design", "CA1054:UriParametersShouldNotBeStrings", MessageId = "1#", Justification = "The Amazon AWS API uses URL strings.")]
-        public SubscriptionClient(IAmazonSQS queueService, string queueUrl)
+        public SubscriptionClient(IAmazonSQS queueService, string queueUrl, MessageSerializer serializer)
         {
+            if (serializer == null)
+                throw new ArgumentNullException("serializer");
+
             _queueService = queueService;
             _queueUrl = queueUrl;
+            _serializer = serializer;
         }
 
         /// <summary>
-        /// Gets or sets the serializer that is used by this instance.
+        /// Gets the serializer that is used by this instance.
         /// </summary>
         public virtual MessageSerializer Serializer
         {
-            get { return _serializer ?? (_serializer = new MessageSerializer()); }
-            set { _serializer = value; }
+            get { return _serializer; }
         }
 
         /// <summary>
@@ -69,18 +75,45 @@ namespace EPiServer.Amazon.Events
             };
             ReceiveMessageResponse response = _queueService.ReceiveMessageAsync(request).GetAwaiter().GetResult();
 
-            if (response.Messages.Count == 0)
+            if (response.Messages == null || response.Messages.Count == 0)
             {
                 return Enumerable.Empty<EventMessage>();
             }
 
-            var messages = response.Messages
-                .Where(m => m.Body != null)
-                .Select(m => Serializer.DeserializeNotification(m.Body)).ToArray();
+            var messages = new List<EventMessage>(response.Messages.Count);
+            foreach (var message in response.Messages.Where(m => m.Body != null))
+            {
+                var eventMessage = TryDeserialize(message);
+                if (eventMessage != null)
+                {
+                    messages.Add(eventMessage);
+                }
+            }
 
             DeleteRetrievedMessages(_queueUrl, response.Messages);
 
             return messages;
+        }
+
+        /// <summary>
+        /// Deserializes a single received message, returning <c>null</c> if it cannot be read.
+        /// </summary>
+        /// <remarks>
+        /// A message that cannot be read is discarded along with the rest of the batch it arrived in. Leaving it
+        /// on the queue would only have it delivered again and fail again, holding up every event behind it.
+        /// </remarks>
+        [SuppressMessage("Microsoft.Design", "CA1031:DoNotCatchGeneralExceptionTypes", Justification = "One unreadable message must not cost the messages received alongside it.")]
+        private EventMessage TryDeserialize(Message message)
+        {
+            try
+            {
+                return Serializer.DeserializeNotification(message.Body);
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(string.Format(CultureInfo.InvariantCulture, "Unable to read the event message received as '{0}'. The message is discarded.", message.MessageId), ex);
+                return null;
+            }
         }
 
         private void DeleteRetrievedMessages(string queueUrl, IEnumerable<Message> messages)

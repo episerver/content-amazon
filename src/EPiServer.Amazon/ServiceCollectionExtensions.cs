@@ -1,6 +1,7 @@
 ﻿using System;
 using EPiServer.Amazon.Blobs;
 using EPiServer.Amazon.Events;
+using EPiServer.Events.Providers;
 using EPiServer.Framework.Blobs;
 
 namespace Microsoft.Extensions.DependencyInjection
@@ -17,7 +18,7 @@ namespace Microsoft.Extensions.DependencyInjection
         /// <param name="configureOptions">The options to configure</param>
         public static IServiceCollection AddAmazonEventProvider(this IServiceCollection services, Action<AmazonEventClientOptions> configureOptions = null)
         {
-            services.AddEventProvider<AmazonEventProvider>();
+            services.AddSingleton<EventProvider, AmazonEventProvider>();
             if (configureOptions is object)
             {
                 services.Configure(configureOptions);
