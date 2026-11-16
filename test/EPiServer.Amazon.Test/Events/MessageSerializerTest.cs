@@ -1,7 +1,9 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using EPiServer.Events;
 using EPiServer.Events.Clients.Internal;
+using Newtonsoft.Json;
 using Xunit;
 
 namespace EPiServer.Amazon.Events
@@ -145,6 +147,100 @@ namespace EPiServer.Amazon.Events
 
             Assert.IsAssignableFrom<StateMessage>(result.Parameter);
             Assert.Equal(param.ServerName, ((StateMessage)result.Parameter).ServerName);
+        }
+
+        [Fact]
+        public void Serialize_WithStringArrayParameter_ShouldBeDeserializableToStringArray()
+        {
+            var message = new EventMessage
+            {
+                EventId = Guid.NewGuid(),
+                Parameter = new[] { "a", "b" }
+            };
+            var subject = new MessageSerializer();
+
+            var result = subject.Deserialize(subject.Serialize(message));
+
+            Assert.Equal(new[] { "a", "b" }, Assert.IsType<string[]>(result.Parameter));
+        }
+
+        [Theory]
+        [InlineData("System.Diagnostics.Process, System.Diagnostics.Process")]
+        [InlineData("System.Windows.Data.ObjectDataProvider, PresentationFramework")]
+        [InlineData("System.Diagnostics.Process")]
+        [InlineData("System.Collections.Generic.List`1[[System.Diagnostics.Process, System.Diagnostics.Process]], System.Private.CoreLib")]
+        [InlineData("System.Collections.Generic.Dictionary`2[[System.String, System.Private.CoreLib],[System.Diagnostics.Process, System.Diagnostics.Process]], System.Private.CoreLib")]
+        [InlineData("System.Collections.Generic.SortedSet`1[[System.String, System.Private.CoreLib]], System.Collections")]
+        [InlineData("System.Diagnostics.Process[], System.Diagnostics.Process")]
+        public void Deserialize_WithUntrustedParameterType_ShouldThrow(string typeName)
+        {
+            var json = "{\"EventId\":\"51da5053-6af8-4a10-9bd4-8417e48f38bd\",\"Parameter\":{\"$type\":\"" + typeName + "\"}}";
+            var subject = new MessageSerializer();
+
+            Assert.Throws<JsonSerializationException>(() => subject.Deserialize(json));
+        }
+
+        [Fact]
+        public void Serialize_WithListParameter_ShouldBeDeserializableToList()
+        {
+            var message = new EventMessage
+            {
+                EventId = Guid.NewGuid(),
+                Parameter = new List<string> { "a" }
+            };
+            var subject = new MessageSerializer();
+
+            var result = subject.Deserialize(subject.Serialize(message));
+
+            Assert.Equal(new[] { "a" }, Assert.IsType<List<string>>(result.Parameter));
+        }
+
+        [Fact]
+        public void Serialize_WithDictionaryParameter_ShouldBeDeserializableToDictionary()
+        {
+            var message = new EventMessage
+            {
+                EventId = Guid.NewGuid(),
+                Parameter = new Dictionary<string, Guid[]> { { "a", new[] { Guid.Empty } } }
+            };
+            var subject = new MessageSerializer();
+
+            var result = subject.Deserialize(subject.Serialize(message));
+
+            Assert.Equal(Guid.Empty, Assert.Single(Assert.IsType<Dictionary<string, Guid[]>>(result.Parameter)["a"]));
+        }
+
+        [Fact]
+        public void Deserialize_WithNotRegisteredCustomParameter_ShouldThrow()
+        {
+            var message = new EventMessage
+            {
+                EventId = Guid.NewGuid(),
+                Parameter = new CustomParameter { Name = "a" }
+            };
+            var subject = new MessageSerializer();
+
+            Assert.Throws<JsonSerializationException>(() => subject.Deserialize(subject.Serialize(message)));
+        }
+
+        [Fact]
+        public void Deserialize_WithAdditionalAllowedParameterType_ShouldRecreateParameter()
+        {
+            var message = new EventMessage
+            {
+                EventId = Guid.NewGuid(),
+                Parameter = new List<CustomParameter> { new CustomParameter { Name = "a" } }
+            };
+            var subject = new MessageSerializer(new[] { typeof(CustomParameter) });
+
+            var result = subject.Deserialize(subject.Serialize(message));
+
+            Assert.Equal("a", Assert.Single(Assert.IsType<List<CustomParameter>>(result.Parameter)).Name);
+        }
+
+        public class CustomParameter
+        {
+            public string Name { get; set; }
         }
 
         private static string PropertyPattern(string propertyName, object value)

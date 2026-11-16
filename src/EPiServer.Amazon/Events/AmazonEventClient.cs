@@ -67,7 +67,10 @@ namespace EPiServer.Amazon.Events
             // Subscription Queue
             string queueArn = CreateAndConfigureQueue(_queueService, topicArn, out _queueUrl);
             _subscriptionArn = SubscribeQueueToTopic(_notificationService, topicArn, queueArn);
-            _subscriptionClient = new SubscriptionClient(_queueService, _queueUrl);
+            _subscriptionClient = new SubscriptionClient(_queueService, _queueUrl)
+            {
+                Serializer = new MessageSerializer(clientConfiguration.AllowedParameterTypes)
+            };
 
             if (!clientConfiguration.DisableAutoCleanupQueue)
             {
